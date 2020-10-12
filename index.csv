@@ -1,0 +1,5 @@
+,Name,Explanation,n_iterations,n_way,n_shot,batch_size,eval_period,eval_iterations,time,accuracy,iteration,result_directory
+0,Null,To make data frame not empty,,,,,,,,,,
+1,Few-Shot Learning training,,10.0,5.0,5.0,5.0,3.0,100.0,3.898571014404297,0.402,0.0,D:\petrtsv\projects\ds\few_shot_learning_study\experiments\82290af8-4838-40ae-9faf-29d9e7a42592
+2,Few-Shot Learning training,,10.0,5.0,5.0,5.0,3.0,100.0,3.663313627243042,0.37,0.0,D:\petrtsv\projects\ds\few_shot_learning_study\experiments\6d3074ef-97ad-46a4-938e-3f9aeed6defb
+3,Few-Shot Learning training,,30000.0,15.0,5.0,75.0,1000.0,600.0,74.45669102668762,0.502888888888889,27000.0,D:\petrtsv\projects\ds\few_shot_learning_study\experiments\fa2c1aa4-44a0-43c3-bdf1-84dfc5136604
