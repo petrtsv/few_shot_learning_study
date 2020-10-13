@@ -5,6 +5,7 @@ from torchvision.datasets import CIFAR10
 from torchvision.transforms import transforms
 
 import data
+import data.base
 from config import DEFAULT_DATASETS_DIR
 
 resize = transforms.Compose(
@@ -40,7 +41,7 @@ class ImageItem(object):
         return self.source[self.index][0]
 
 
-class CIFAR10Dataset(data.LabeledDataset):
+class CIFAR10Dataset(data.base.LabeledDataset):
     CLASSES = 10
 
     def __init__(self, root="C:\\datasets", augment_prob=0.0, reduce=0.0,
@@ -109,7 +110,7 @@ class CIFAR10Dataset(data.LabeledDataset):
         return self.test_subdataset
 
 
-class CIFAR100Dataset(data.LabeledDataset):
+class CIFAR100Dataset(data.base.LabeledDataset):
     CLASSES = 100
 
     def __init__(self, root=DEFAULT_DATASETS_DIR, augment_prob=0.0, reduce=0.0,

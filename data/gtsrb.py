@@ -7,6 +7,7 @@ from PIL import Image
 from torchvision import transforms
 
 import data
+import data.base
 from config import DEFAULT_GTSRB_DIR
 
 MEAN = (0.485, 0.456, 0.406)
@@ -45,7 +46,7 @@ class ImageItem(object):
         return img
 
 
-class GTSRBDataset(data.LabeledDataset):
+class GTSRBDataset(data.base.LabeledDataset):
     CLASSES = 43
 
     def __init__(self, data_dir=DEFAULT_GTSRB_DIR, augment_prob=0.0, reduce=0.0,

@@ -13,6 +13,7 @@ from torchvision.datasets import ImageFolder, DatasetFolder
 from torchvision.transforms import transforms
 
 import data
+import data.base
 from config import DEFAULT_GOOGLE_LANDMARKS_DIR
 
 MEAN = (0.485, 0.456, 0.406)
@@ -32,7 +33,7 @@ class ImageItem(object):
         return self.source[self.index][0]
 
 
-class GoogleLandmarksDatasetBase(data.LabeledDataset):
+class GoogleLandmarksDatasetBase(data.base.LabeledDataset):
     def __init__(self, root, reduce,
                  random_seed, **kwargs):
         self.CLASSES = len(os.listdir(root))

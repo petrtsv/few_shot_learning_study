@@ -8,6 +8,7 @@ from torchvision.datasets import ImageFolder
 from torchvision.transforms import transforms
 
 import data
+import data.base
 from config import DEFAULT_MINI_IMAGENET_DIR
 
 MEAN = (0.485, 0.456, 0.406)
@@ -27,7 +28,7 @@ class ImageItem(object):
         return self.source[self.index][0]
 
 
-class MiniImageNetDataset(data.LabeledDataset):
+class MiniImageNetDataset(data.base.LabeledDataset):
     CLASSES = 100
 
     def __init__(self, root=os.path.join(DEFAULT_MINI_IMAGENET_DIR, 'train_tensors'), augment_prob=0.0, reduce=0.0,

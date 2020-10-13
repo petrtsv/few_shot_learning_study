@@ -8,6 +8,7 @@ from torchvision.datasets import ImageFolder
 from torchvision.transforms import transforms
 
 import data
+import data.base
 from config import DEFAULT_CUB_DIR
 
 MEAN = (0.485, 0.456, 0.406)
@@ -27,7 +28,7 @@ class ImageItem(object):
         return self.source[self.index][0]
 
 
-class CUBDataset(data.LabeledDataset):
+class CUBDataset(data.base.LabeledDataset):
     CLASSES = 200
 
     def __init__(self, root=os.path.join(DEFAULT_CUB_DIR, 'images', 'images_tensors'), augment_prob=0.0, reduce=0.0,

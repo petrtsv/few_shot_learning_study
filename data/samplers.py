@@ -1,7 +1,7 @@
 import torch
 from torch.utils.data import Dataset
 
-from data import LabeledSubdataset
+from data.base import LabeledSubdataset
 
 
 class EpisodeSampler(Dataset):

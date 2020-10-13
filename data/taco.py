@@ -9,6 +9,7 @@ from torchvision.datasets import ImageFolder
 from torchvision.transforms import transforms
 
 import data
+import data.base
 from config import DEFAULT_TACO_DIR
 
 MEAN = (0.485, 0.456, 0.406)
@@ -28,7 +29,7 @@ class ImageItem(object):
         return self.source[self.index][0]
 
 
-class TacoDataset(data.LabeledDataset):
+class TacoDataset(data.base.LabeledDataset):
     CLASSES = 38
 
     def __init__(self, root=os.path.join(DEFAULT_TACO_DIR, 'tensors'), augment_prob=0.0, reduce=0.0, image_size=84,

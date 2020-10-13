@@ -1,4 +1,5 @@
 import copy
+import json
 import os
 import time
 from uuid import uuid4
@@ -8,11 +9,13 @@ import torch
 from torch.optim.lr_scheduler import LambdaLR
 
 from config import EXPERIMENTS_DIR
-from data import LabeledSubdataset, LABELED_DATASETS
+from data import LABELED_DATASETS
+from data.base import LabeledSubdataset
 from data.samplers import EpisodeSampler, EpisodeSamplerGlobalLabels
 from evaluation.fsl_evaluation import evaluate_fsl_solution
 from experiments_index.index import save_record
 from models.base_model import FSLSolver
+from models.feature_extarctors import FEATURE_EXTRACTORS
 from models.feature_extarctors.convnet import ConvNet64
 from utils import pretty_time
 from visualization.plots import PlotterWindow
@@ -32,7 +35,7 @@ def run_training(model: FSLSolver, train_subdataset: LabeledSubdataset,
                  device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu")):
     model = model.to(device)
 
-    optimizer = torch.optim.SGD(params=model.parameters(), lr=0.1, nesterov=True, weight_decay=0.0005,
+    optimizer = torch.optim.SGD(params=model.parameters(), lr=0.001, nesterov=True, weight_decay=0.0005,
                                 momentum=0.9)
     scheduler = LambdaLR(optimizer, lr_lambda=lr_schedule)
     train_sampler = EpisodeSamplerGlobalLabels(subdataset=train_subdataset, n_way=options['n_way'],
@@ -148,6 +151,9 @@ def run_training(model: FSLSolver, train_subdataset: LabeledSubdataset,
     train_metrics_df.to_csv(os.path.join(result_directory, 'train_metrics.csv'))
     test_metrics_df.to_csv(os.path.join(result_directory, 'test_metrics.csv'))
 
+    with open(os.path.join(result_directory, 'options.json'), 'w') as f:
+        print(json.dumps(options), file=f)
+
     save_record('Few-Shot Learning training', options)
 
     print("Training finished. Total execution time: %s" % pretty_time(training_time))
@@ -155,21 +161,23 @@ def run_training(model: FSLSolver, train_subdataset: LabeledSubdataset,
     print("Best iteration is: [%d/%d]" % (best_iteration + 1, options['n_iterations']))
     print()
 
+    return best_model.to(device)
 
-if __name__ == '__main__':
-    options = {
-        'n_iterations': 30000,
-        'n_way': 15,
-        'n_shot': 5,
-        'batch_size': 75,
-        'eval_period': 1000,
-        'eval_iterations': 600,
-    }
 
-    dataset = LABELED_DATASETS['google-landmarks'](image_size=84)
-    base_subdataset, val_subdataset = dataset.subdataset.extract_classes(3000)
-    base_subdataset.set_test(False)
-    val_subdataset.set_test(True)
-    model = FSLSolver(backbone=ConvNet64(), aux_rotation_k=1.0)
+def train_model(options: dict):
+    dataset = LABELED_DATASETS[options['dataset']](image_size=options['image_size'])
+    train_subdataset, test_subdataset = dataset.subdataset.extract_classes(options['train_classes'])
 
-    run_training(model=model, train_subdataset=base_subdataset, test_subdataset=val_subdataset, options=options)
+    train_subdataset.set_test(False)
+    test_subdataset.set_test(True)
+
+    model = FSLSolver(
+        backbone=FEATURE_EXTRACTORS[options['backbone']],
+        aux_rotation_k=options['aux_rotation_k'],
+        aux_location_k=options['aux_location_k'],
+    )
+
+    trained_model = run_training(model=model, train_subdataset=train_subdataset, test_subdataset=test_subdataset,
+                                 options=options)
+
+    return trained_model
