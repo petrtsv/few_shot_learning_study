@@ -6,6 +6,7 @@ from torch.nn import functional as F
 
 from evaluation.metrics import accuracy
 from models.auxillary_tasks import RotationTask
+from models.dfmn import DFMNLoss
 from models.feature_extarctors.base import NoFlatteningBackbone
 from utils import remove_dim
 
@@ -13,9 +14,13 @@ MAX_BATCH_SIZE = 500
 
 
 class FSLSolver(nn.Module):
-    def __init__(self, backbone: NoFlatteningBackbone, aux_rotation_k=0.0, aux_location_k=0.0):
+    def __init__(self, backbone: NoFlatteningBackbone, aux_rotation_k=0.0, aux_location_k=0.0, dfmn_k=0.0,
+                 train_classes=None, train_n_way=None):
         super(FSLSolver, self).__init__()
         self.feature_extractor = backbone
+
+        self.train_classes = train_classes
+        self.train_n_way = train_n_way
 
         self.aux_rotation_k = aux_rotation_k
         self.aux_rotation_task = None
@@ -23,9 +28,16 @@ class FSLSolver(nn.Module):
         self.aux_location_k = aux_location_k
         self.aux_location_task = None
 
+        self.dfmn_k = dfmn_k
+        self.dfmn_loss = None
+
         if self.aux_rotation_k > 10 ** -9:
             self.aux_rotation_task = RotationTask(self.feature_extractor.output_features(),
                                                   self.feature_extractor.output_featmap_size())
+
+        if self.dfmn_k > 10 ** -9:
+            self.dfmn_loss = DFMNLoss(self.feature_extractor.output_features(),
+                                      self.feature_extractor.output_featmap_size(), self.train_classes)
 
         self.loss_fn = nn.CrossEntropyLoss()
 
@@ -68,11 +80,10 @@ class FSLSolver(nn.Module):
         class_prototypes = self.compute_prototypes(support_set_features)
         return class_prototypes
 
-    def scores(self, prototypes: torch.Tensor, query_set: torch.Tensor, is_train: bool = False) -> torch.Tensor:
+    def scores(self, prototypes: torch.Tensor, query_set_features: torch.Tensor,
+               is_train: bool = False) -> torch.Tensor:
         n_classes = prototypes.size(0)
-        query_set_size = query_set.size(0)
-
-        query_set_features = self.extract_features(query_set)
+        query_set_size = query_set_features.size(0)
 
         class_prototypes = prototypes
 
@@ -90,9 +101,11 @@ class FSLSolver(nn.Module):
                 global_classes_mapping: dict) -> Tuple[torch.Tensor, dict, dict]:
         combined_input = torch.cat((remove_dim(support_set, 1), query_set), 0)
 
+        query_set_features = self.extract_features(query_set)
+
         prototypes = self.get_prototypes(support_set)
 
-        scores = self.scores(prototypes=prototypes, query_set=query_set, is_train=True)
+        scores = self.scores(prototypes=prototypes, query_set_features=query_set_features, is_train=True)
 
         loss = self.loss_fn(scores, labels)
         losses = {'fsl_loss': loss.item()}
@@ -103,6 +116,12 @@ class FSLSolver(nn.Module):
             rot_loss = self.aux_rotation_task(rotated_features, rotation_labels)
             losses['rotation_loss'] = rot_loss.item()
             loss += rot_loss
+
+        if self.dfmn_loss is not None:
+            loss_dfmn = self.dfmn_loss(query_set_features, labels, global_classes_mapping, self.train_n_way)
+            losses['dfmn_loss'] = loss_dfmn.item()
+            loss += loss_dfmn
+
         metrics = {'accuracy': accuracy(scores, labels)}
 
         return loss, losses, metrics

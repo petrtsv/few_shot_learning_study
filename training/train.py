@@ -16,7 +16,6 @@ from evaluation.fsl_evaluation import evaluate_fsl_solution
 from experiments_index.index import save_record
 from models.base_model import FSLSolver
 from models.feature_extarctors import FEATURE_EXTRACTORS
-from models.feature_extarctors.convnet import ConvNet64
 from utils import pretty_time
 from visualization.plots import PlotterWindow
 
@@ -175,6 +174,9 @@ def train_model(options: dict):
         backbone=FEATURE_EXTRACTORS[options['backbone']],
         aux_rotation_k=options['aux_rotation_k'],
         aux_location_k=options['aux_location_k'],
+        dfmn_k=options['dfmn_k'],
+        train_n_way=options['n_way'],
+        train_classes=options['train_classes']
     )
 
     trained_model = run_training(model=model, train_subdataset=train_subdataset, test_subdataset=test_subdataset,
