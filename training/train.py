@@ -25,23 +25,25 @@ def lr_schedule(iteration: int):
         return 0.0012
     elif iteration >= 20000:
         return 0.006
+    elif iteration >= 1000:
+        return 0.012
     else:
         return 0.1
 
 
 def run_training(model: FSLSolver, train_subdataset: LabeledSubdataset,
-                 test_subdataset: LabeledSubdataset, options: dict,
+                 val_subdataset: LabeledSubdataset, options: dict,
                  device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu")):
     model = model.to(device)
 
-    optimizer = torch.optim.SGD(params=model.parameters(), lr=0.001, nesterov=True, weight_decay=0.0005,
+    optimizer = torch.optim.SGD(params=model.parameters(), lr=0.1, nesterov=True, weight_decay=0.0005,
                                 momentum=0.9)
     scheduler = LambdaLR(optimizer, lr_lambda=lr_schedule)
     train_sampler = EpisodeSamplerGlobalLabels(subdataset=train_subdataset, n_way=options['n_way'],
                                                n_shot=options['n_shot'],
-                                               batch_size=options['batch_size'], balanced=False)
-    test_sampler = EpisodeSampler(subdataset=test_subdataset, n_way=options['n_way'], n_shot=options['n_shot'],
-                                  batch_size=options['batch_size'], balanced=False)
+                                               batch_size=options['batch_size'], balanced=True, device=device)
+    val_sampler = EpisodeSampler(subdataset=val_subdataset, n_way=options['n_way'], n_shot=options['n_shot'],
+                                 batch_size=options['batch_size'], balanced=True, device=device)
 
     best_model = copy.deepcopy(model)
     best_accuracy = 0
@@ -65,6 +67,8 @@ def run_training(model: FSLSolver, train_subdataset: LabeledSubdataset,
         model.train()
 
         support_set, batch, labels_mapping = train_sampler.sample()
+        support_set = support_set.to(device)
+
         query_set, query_labels = batch
         query_set = query_set.to(device)
         query_labels = query_labels.to(device)
@@ -87,7 +91,7 @@ def run_training(model: FSLSolver, train_subdataset: LabeledSubdataset,
         if iteration % options['eval_period'] == 0 or iteration == options['n_iterations'] - 1:
             val_start_time = time.time()
 
-            val_metrics = evaluate_fsl_solution(model, test_sampler, options['eval_iterations'])
+            val_metrics = evaluate_fsl_solution(model, val_sampler, options['eval_iterations'])
 
             for metric_item in val_metrics.keys():
                 metrics_plotter.add_point("test:" + metric_item, iteration, val_metrics[metric_item])
@@ -113,6 +117,7 @@ def run_training(model: FSLSolver, train_subdataset: LabeledSubdataset,
                 pretty_time(time_per_iteration),
                 pretty_time(time_per_iteration * (options['n_iterations'] - iteration - 1)),
             ))
+            print("Current metrics:", val_metrics)
             if val_metrics['accuracy'] > best_accuracy:
                 best_accuracy = val_metrics['accuracy']
                 best_accuracy_metrics = val_metrics
@@ -156,7 +161,7 @@ def run_training(model: FSLSolver, train_subdataset: LabeledSubdataset,
     save_record('Few-Shot Learning training', options)
 
     print("Training finished. Total execution time: %s" % pretty_time(training_time))
-    print("Best accuracy is: %.3f" % best_accuracy)
+    print("Best validation accuracy is: %.3f" % best_accuracy)
     print("Best iteration is: [%d/%d]" % (best_iteration + 1, options['n_iterations']))
     print()
 
@@ -176,10 +181,11 @@ def train_model(options: dict):
         aux_location_k=options['aux_location_k'],
         dfmn_k=options['dfmn_k'],
         train_n_way=options['n_way'],
-        train_classes=options['train_classes']
+        dataset_classes=dataset.CLASSES,
+        k=options['k'],
     )
 
-    trained_model = run_training(model=model, train_subdataset=train_subdataset, test_subdataset=test_subdataset,
+    trained_model = run_training(model=model, train_subdataset=train_subdataset, val_subdataset=test_subdataset,
                                  options=options)
 
-    return trained_model
+    return trained_model, options

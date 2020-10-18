@@ -1,3 +1,5 @@
+from typing import Dict
+
 import torch
 
 
@@ -30,8 +32,8 @@ def pretty_time(seconds):
     return res
 
 
-def inverse_mapping(m: dict) -> dict:
-    res = {}
+def inverse_mapping(m: Dict[int, int]) -> Dict[int, int]:
+    res: Dict[int, int] = {}
     for e in m:
         res[m[e]] = e
     return res

@@ -7,7 +7,6 @@ from PIL import Image
 from torchvision.datasets import ImageFolder
 from torchvision.transforms import transforms
 
-import data
 import data.base
 from config import DEFAULT_MINI_IMAGENET_DIR
 
@@ -29,12 +28,11 @@ class ImageItem(object):
 
 
 class MiniImageNetDataset(data.base.LabeledDataset):
-    CLASSES = 100
-
     def __init__(self, root=os.path.join(DEFAULT_MINI_IMAGENET_DIR, 'train_tensors'), augment_prob=0.0, reduce=0.0,
                  image_size=84,
                  tensors=True,
                  random_seed=42, **kwargs):
+        self.CLASSES = len(os.listdir(root))
         self.reduce = reduce
         self.tensors = tensors
         random.seed(random_seed)
@@ -164,6 +162,11 @@ def save_as_tensors(source=os.path.join(DEFAULT_MINI_IMAGENET_DIR, 'train'),
                 image_tensor = transform(img)
                 torch.save(image_tensor, target_file)
         print(class_label, i)
+
+
+class MiniImageNetTestDataset(MiniImageNetDataset):
+    def __init__(self, root=os.path.join(DEFAULT_MINI_IMAGENET_DIR, 'test_tensors'), **kwargs):
+        super(MiniImageNetTestDataset, self).__init__(root=root, **kwargs)
 
 # if __name__ == '__main__':
 #     save_as_tensors()
