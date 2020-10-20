@@ -1,10 +1,11 @@
 import time
+from typing import List
 
 import torch
 
 from data import LABELED_DATASETS
 from data.samplers import EpisodeSampler
-from evaluation.metrics import accuracy
+from evaluation.metrics import accuracy, top_k_accuracy
 from experiments_index.index import save_record
 from models.base_model import FSLSolver
 from utils import pretty_time
@@ -12,7 +13,8 @@ from utils import pretty_time
 
 def evaluate_fsl_solution(model: FSLSolver, sampler: EpisodeSampler, n_iterations: int, metrics_prefix: str = ""):
     device = sampler.device
-    accuracy_sum = 0
+    accuracy_list: List[int] = []
+    top_3_accuracy_list: List[int] = []
     model.eval()
     with torch.no_grad():
         for iteration in range(n_iterations):
@@ -25,9 +27,23 @@ def evaluate_fsl_solution(model: FSLSolver, sampler: EpisodeSampler, n_iteration
             prototypes = model.get_prototypes(support_set)
             y_pred = model.inference(prototypes, x)
             cur_accuracy = accuracy(predictions=y_pred, target=y)
-            accuracy_sum += cur_accuracy
+            accuracy_list.append(cur_accuracy)
 
-    return {metrics_prefix + 'accuracy': accuracy_sum / n_iterations}
+            cur_top_3_accuracy = top_k_accuracy(predictions=y_pred, target=y, k=3)
+            top_3_accuracy_list.append(cur_top_3_accuracy)
+
+    accuracy_tensor = torch.tensor(accuracy_list)
+    top_3_accuracy_tensor = torch.tensor(top_3_accuracy_list)
+
+    accuracy_mean = torch.mean(accuracy_tensor).item()
+    accuracy_std = torch.std(accuracy_tensor).item()
+
+    top_3_accuracy_mean = torch.mean(top_3_accuracy_tensor).item()
+    top_3_accuracy_std = torch.std(top_3_accuracy_tensor).item()
+
+    return {metrics_prefix + 'accuracy': accuracy_mean, metrics_prefix + 'accuracy_std': accuracy_std,
+            metrics_prefix + 'top_3_accuracy': top_3_accuracy_mean,
+            metrics_prefix + 'top_3_accuracy_std': top_3_accuracy_std, }
 
 
 def test_model(model: FSLSolver, options: dict, device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu")):
@@ -48,7 +64,7 @@ def test_model(model: FSLSolver, options: dict, device=torch.device("cuda:0" if 
     cur_time = time.time()
     testing_time = cur_time - start_time
     results['testing_time'] = testing_time
-    save_record("'Few-Shot Learning testing", {**options, **results})
+    save_record("Few-Shot Learning testing", {**options, **results})
     print("Testing finished. Total execution time: %s" % pretty_time(testing_time))
     print("Results:", results)
     print()
