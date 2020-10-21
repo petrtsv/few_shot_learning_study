@@ -6,7 +6,7 @@ from torch.nn import functional as F
 
 from evaluation.metrics import accuracy
 from models.auxillary_tasks import RotationTask
-from models.dfmn import DFMNLoss
+from models.dfmn import DFMNLoss, ScaleModule
 from models.feature_extarctors.base import NoFlatteningBackbone
 from utils import remove_dim
 
@@ -17,8 +17,13 @@ class FSLSolver(nn.Module):
         super(FSLSolver, self).__init__()
         self.feature_extractor = backbone
 
-        assert distance_type in ('cosine', 'euclidean', 'sen')
+        assert distance_type in ('cosine', 'cosine_scale', 'euclidean', 'sen')
         self.distance_type = distance_type
+
+        self.scale_module = None
+        if self.distance_type == 'cosine_scale':
+            self.scale_module = ScaleModule(in_features=self.feature_extractor.output_features(),
+                                            map_size=self.feature_extractor.output_featmap_size())
 
         self.dataset_classes = dataset_classes
         self.train_n_way = train_n_way
@@ -91,14 +96,23 @@ class FSLSolver(nn.Module):
         return class_prototypes
 
     def distance(self, a: torch.Tensor, b: torch.Tensor):
-        if self.distance_type == 'cosine':
+        a_scale = 1
+        b_scale = 1
+
+        if self.distance_type == 'cosine_scale':
+            a_scale = self.scale_module(a)
+            b_scale = self.scale_module(b)
+
+        if self.distance_type in ('cosine', 'cosine_scale'):
             a = F.normalize(a, dim=1)
             b = F.normalize(b, dim=1)
-            return (a - b).pow(2).sum(dim=1)
         elif self.distance_type == 'sen':
             raise NotImplementedError("SEN distance is not implemented yet")
-        else:
-            return (a - b).pow(2).sum(dim=1)
+
+        a = torch.div(a, a_scale)
+        b = torch.div(b, b_scale)
+
+        return (a - b).pow(2).sum(dim=1)
 
     def scores(self, prototypes: torch.Tensor, query_set_features: torch.Tensor,
                is_train: bool = False) -> torch.Tensor:

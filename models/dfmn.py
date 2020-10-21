@@ -6,6 +6,28 @@ from torch import nn
 from utils import inverse_mapping
 
 
+class ScaleModule(nn.Module):
+    def __init__(self, in_features, map_size):
+        super(ScaleModule, self).__init__()
+        self.in_features = in_features
+        self.conv = nn.Conv2d(in_channels=self.in_features, out_channels=1, kernel_size=3)
+        self.bn = nn.BatchNorm2d(1, eps=2e-5)
+        self.relu = nn.ReLU()
+
+        self.fc = nn.Linear((map_size - 2) ** 2, 1)
+        self.sp = nn.Softplus()
+
+    def forward(self, x):
+        x = self.conv(x)
+        x = self.bn(x)
+        x = self.relu(x)
+        x = x.reshape(x.size(0), -1)
+        x = self.fc(x)
+        x = self.sp(x)
+
+        return x
+
+
 class DFMNLoss(nn.Module):
     def __init__(self, in_features: int, in_featmap_size: int, n_classes: int):
         super(DFMNLoss, self).__init__()
