@@ -100,8 +100,12 @@ class FSLSolver(nn.Module):
         b_scale = 1
 
         if self.distance_type == 'cosine_scale':
-            a_scale = self.scale_module(a)
-            b_scale = self.scale_module(b)
+            a_scale = self.scale_module(
+                a.view(-1, self.feature_extractor.output_features(), self.feature_extractor.output_featmap_size(),
+                       self.feature_extractor.output_featmap_size()))
+            b_scale = self.scale_module(
+                b.view(-1, self.feature_extractor.output_features(), self.feature_extractor.output_featmap_size(),
+                       self.feature_extractor.output_featmap_size()))
 
         if self.distance_type in ('cosine', 'cosine_scale'):
             a = F.normalize(a, dim=1)
