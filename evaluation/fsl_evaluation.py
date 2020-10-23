@@ -37,10 +37,10 @@ def evaluate_fsl_solution(model: FSLSolver, sampler: EpisodeSampler, n_iteration
         top_3_accuracy_tensor = torch.tensor(top_3_accuracy_list)
 
         accuracy_mean = torch.mean(accuracy_tensor).item()
-        accuracy_std = torch.std(accuracy_tensor).item() / sqrt(n_iterations)
+        accuracy_std = 3.0 * (torch.std(accuracy_tensor).item() / sqrt(n_iterations))
 
         top_3_accuracy_mean = torch.mean(top_3_accuracy_tensor).item()
-        top_3_accuracy_std = torch.std(top_3_accuracy_tensor).item() / sqrt(n_iterations)
+        top_3_accuracy_std = 3.0 * (torch.std(top_3_accuracy_tensor).item() / sqrt(n_iterations))
 
     return {metrics_prefix + 'accuracy': accuracy_mean, metrics_prefix + 'accuracy_std': accuracy_std,
             metrics_prefix + 'top_3_accuracy': top_3_accuracy_mean,

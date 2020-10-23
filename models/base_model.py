@@ -20,10 +20,8 @@ class FSLSolver(nn.Module):
         assert distance_type in ('cosine', 'cosine_scale', 'euclidean', 'sen')
         self.distance_type = distance_type
 
-        self.scale_module = None
-        if self.distance_type == 'cosine_scale':
-            self.scale_module = ScaleModule(in_features=self.feature_extractor.output_features(),
-                                            map_size=self.feature_extractor.output_featmap_size())
+        self.scale_module = ScaleModule(in_features=self.feature_extractor.output_features(),
+                                        map_size=self.feature_extractor.output_featmap_size())
 
         self.dataset_classes = dataset_classes
         self.train_n_way = train_n_way
@@ -96,8 +94,8 @@ class FSLSolver(nn.Module):
         return class_prototypes
 
     def distance(self, a: torch.Tensor, b: torch.Tensor):
-        a_scale = 1
-        b_scale = 1
+        a_scale = 1.0
+        b_scale = 1.0
 
         if self.distance_type == 'cosine_scale':
             a_scale = self.scale_module(
@@ -125,11 +123,10 @@ class FSLSolver(nn.Module):
 
         class_prototypes = prototypes
 
-        query_set_features_prepared = query_set_features.unsqueeze(1).repeat_interleave(repeats=n_classes,
-                                                                                        dim=1)
+        query_set_features_prepared = query_set_features.repeat_interleave(repeats=n_classes,
+                                                                           dim=0)
 
-        class_prototypes_expanded = class_prototypes.unsqueeze(0).repeat_interleave(repeats=query_set_size,
-                                                                                    dim=0)
+        class_prototypes_expanded = class_prototypes.repeat(query_set_size, 1)
 
         distance = self.distance(
             class_prototypes_expanded.view(query_set_size * n_classes, -1),
@@ -156,16 +153,16 @@ class FSLSolver(nn.Module):
             rotated, rotation_labels = self.aux_rotation_task.get_task(combined_input)
             rotated_features = self.extract_features(rotated, flatten=False)
             rot_loss = self.aux_rotation_task(rotated_features, rotation_labels)
-            losses['rotation_loss'] = rot_loss.item()
-            loss += rot_loss
+            losses['rotation_loss'] = rot_loss.item() * self.aux_rotation_k
+            loss += rot_loss * self.aux_rotation_k
 
         if self.dfmn_loss is not None:
             loss_dfmn = self.dfmn_loss(query_set_features.view(-1, self.feature_extractor.output_features(),
                                                                self.feature_extractor.output_featmap_size(),
                                                                self.feature_extractor.output_featmap_size()), labels,
                                        global_classes_mapping, self.train_n_way)
-            losses['dfmn_loss'] = loss_dfmn.item()
-            loss += loss_dfmn
+            losses['dfmn_loss'] = loss_dfmn.item() * self.dfmn_k
+            loss += loss_dfmn * self.dfmn_k
 
         metrics = {'accuracy': accuracy(scores, labels)}
 

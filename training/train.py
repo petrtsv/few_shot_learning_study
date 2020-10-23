@@ -25,8 +25,6 @@ def lr_schedule(iteration: int):
         return 0.0012
     elif iteration >= 20000:
         return 0.006
-    elif iteration >= 1000:
-        return 0.012
     else:
         return 0.1
 
