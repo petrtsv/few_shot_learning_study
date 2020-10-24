@@ -58,7 +58,7 @@ def test_model(model: FSLSolver, options: dict, device=torch.device("cuda:0" if 
     subdataset.set_test(True)
 
     sampler = EpisodeSampler(subdataset=subdataset, n_way=options['test_n_way'], n_shot=options['n_shot'],
-                             batch_size=options['test_batch_size'], balanced=False, device=device)
+                             batch_size=options['test_batch_size'], balanced=options['test_balanced'], device=device)
 
     results = evaluate_fsl_solution(model, sampler, options['test_n_iterations'], metrics_prefix="test_")
 

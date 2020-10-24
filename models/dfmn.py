@@ -63,11 +63,15 @@ class DFMNLoss(nn.Module):
         for i in range(n_way):
             indices_list.append(inv_mapping[i])
         indices = torch.tensor(indices_list, device=prototypes.device)
+        # print(indices)
 
         prototypes = torch.index_select(prototypes, 0, indices)
+        # print(prototypes.size())
 
-        query_features = query_features.view(-1, self.in_features, self.in_featmap_size, self.in_featmap_size)
-        expanded_query_set = query_features.permute(0, 2, 3, 1).reshape((-1, query_features.size(1)))
+        expanded_query_features = query_features.view(-1, self.in_features, self.in_featmap_size, self.in_featmap_size)
+        expanded_query_set = expanded_query_features.permute(0, 2, 3, 1).reshape((-1, self.in_features))
+        # print(expanded_query_set.size())
 
         distances = self.get_l2_distances(expanded_query_set, prototypes)
+        # print(distances.size())
         return self.loss_fn(distances, expanded_labels)
