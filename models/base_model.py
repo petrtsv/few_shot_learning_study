@@ -13,7 +13,7 @@ from utils import remove_dim
 
 class FSLSolver(nn.Module):
     def __init__(self, backbone: NoFlatteningBackbone, k=1.0, aux_rotation_k=0.0, aux_location_k=0.0, dfmn_k=0.0,
-                 dataset_classes=None, train_n_way=None, distance_type='cosine'):
+                 dataset_classes=None, train_n_way=None, distance_type='cosine_scale'):
         super(FSLSolver, self).__init__()
         self.feature_extractor = backbone
 

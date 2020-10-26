@@ -181,6 +181,7 @@ def train_model(options: dict):
         train_n_way=options['n_way'],
         dataset_classes=dataset.CLASSES,
         k=options['k'],
+        distance_type=options['distance']
     )
 
     trained_model = run_training(model=model, train_subdataset=train_subdataset, val_subdataset=test_subdataset,
