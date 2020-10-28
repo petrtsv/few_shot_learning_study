@@ -17,7 +17,7 @@ class FSLSolver(nn.Module):
         super(FSLSolver, self).__init__()
         self.feature_extractor = backbone
 
-        assert distance_type in ('cosine', 'cosine_scale', 'euclidean', 'sen')
+        assert distance_type in ('cosine_scale', 'euclidean', 'sen')
         self.distance_type = distance_type
 
         self.scale_module = ScaleModule(in_features=self.feature_extractor.output_features(),
@@ -93,31 +93,37 @@ class FSLSolver(nn.Module):
         class_prototypes = self.compute_prototypes(support_set_features)
         return class_prototypes
 
-    def distance(self, a: torch.Tensor, b: torch.Tensor):
-        a_scale = 1
-        b_scale = 1
-
-        if self.distance_type == 'cosine_scale':
+    def distance(self, a: torch.Tensor, b: torch.Tensor, labels: torch.Tensor = torch.tensor(0)):
+        # a_scale = 1.0
+        # b_scale = 1.0
+        if self.distance_type == 'euclidean':
+            return (a - b).pow(2).sum(dim=1).sqrt()
+        elif self.distance_type == 'cosine_scale':
             a_scale = self.scale_module(
                 a.view(-1, self.feature_extractor.output_features(), self.feature_extractor.output_featmap_size(),
                        self.feature_extractor.output_featmap_size()))
             b_scale = self.scale_module(
                 b.view(-1, self.feature_extractor.output_features(), self.feature_extractor.output_featmap_size(),
                        self.feature_extractor.output_featmap_size()))
-
-        if self.distance_type in ('cosine', 'cosine_scale'):
             a = F.normalize(a, dim=1)
             b = F.normalize(b, dim=1)
+            a = torch.div(a, a_scale)
+            b = torch.div(b, b_scale)
+
+            return (a - b).pow(2).sum(dim=1)
         elif self.distance_type == 'sen':
-            raise NotImplementedError("SEN distance is not implemented yet")
-
-        a = torch.div(a, a_scale)
-        b = torch.div(b, b_scale)
-
-        return (a - b).pow(2).sum(dim=1)
+            euclidean = (a - b).pow(2).sum(dim=1)
+            norms = (a.norm(dim=1, p=2) - b.norm(dim=1, p=2)).pow(2)
+            if (torch.tensor(0).to(labels)).equal(labels):
+                k = 1.0 * labels + (10 ** -7) * (1 - labels)
+            else:
+                k = torch.ones_like(norms)
+            return (euclidean - k * norms).sqrt()
+        else:
+            raise NotImplementedError("Distance is not implemented yet")
 
     def scores(self, prototypes: torch.Tensor, query_set_features: torch.Tensor,
-               is_train: bool = False) -> torch.Tensor:
+               is_train: bool = False, labels: torch.Tensor = torch.tensor(0)) -> torch.Tensor:
         n_classes = prototypes.size(0)
         query_set_size = query_set_features.size(0)
 
@@ -128,12 +134,27 @@ class FSLSolver(nn.Module):
 
         class_prototypes_expanded = class_prototypes.repeat(query_set_size, 1)
 
-        distances = torch.stack(
-            self.distance(
-                class_prototypes_expanded,
-                query_set_features_prepared,
-            ).split(n_classes)
-        )
+        if is_train and self.distance_type == 'sen':
+            labels_expanded = labels.repeat_interleave(repeats=n_classes,
+                                                       dim=0)
+            prototypes_labels_expanded = torch.arange(start=0, end=n_classes, device=labels.device).repeat(
+                query_set_size)
+
+            binary_labels = (labels_expanded.eq(prototypes_labels_expanded)).float()
+            distances = torch.stack(
+                self.distance(
+                    class_prototypes_expanded,
+                    query_set_features_prepared,
+                    labels=binary_labels
+                ).split(n_classes)
+            )
+        else:
+            distances = torch.stack(
+                self.distance(
+                    class_prototypes_expanded,
+                    query_set_features_prepared,
+                ).split(n_classes)
+            )
 
         return -distances
 
@@ -145,7 +166,7 @@ class FSLSolver(nn.Module):
 
         prototypes = self.get_prototypes(support_set)
 
-        scores = self.scores(prototypes=prototypes, query_set_features=query_set_features, is_train=True)
+        scores = self.scores(prototypes=prototypes, query_set_features=query_set_features, is_train=True, labels=labels)
 
         loss = self.loss_fn(scores, labels) * self.k
         losses = {'fsl_loss': loss.item()}
