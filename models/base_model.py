@@ -8,14 +8,17 @@ from evaluation.metrics import accuracy
 from models.auxillary_tasks import RotationTask
 from models.dfmn import DFMNLoss, ScaleModule
 from models.feature_extarctors.base import NoFlatteningBackbone
+from models.set2set_adaptation import FEATTransformer
 from utils import remove_dim
 
 
 class FSLSolver(nn.Module):
     def __init__(self, backbone: NoFlatteningBackbone, k=1.0, aux_rotation_k=0.0, aux_location_k=0.0, dfmn_k=0.0,
-                 dataset_classes=None, train_n_way=None, distance_type='cosine_scale'):
+                 dataset_classes=None, train_n_way=None, distance_type='cosine_scale', feat=False):
         super(FSLSolver, self).__init__()
         self.feature_extractor = backbone
+
+        self.is_feat = feat
 
         assert distance_type in ('cosine_scale', 'euclidean', 'sen')
         self.distance_type = distance_type
@@ -59,6 +62,9 @@ class FSLSolver(nn.Module):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
 
+        self.feat_transformer = FEATTransformer(
+            self.feature_extractor.output_features() * (self.feature_extractor.output_featmap_size() ** 2))
+
     def extract_features(self, batch: torch.Tensor, flatten: bool = True) -> torch.Tensor:
         MAX_BATCH_SIZE: int = 500
         batch_size: int = batch.size(0)
@@ -91,6 +97,10 @@ class FSLSolver(nn.Module):
         support_set_features = self.extract_features(remove_dim(support_set, 1)).view(n_classes,
                                                                                       support_set_size, -1)
         class_prototypes = self.compute_prototypes(support_set_features)
+
+        if self.is_feat:
+            class_prototypes = self.feat_transformer(class_prototypes)
+
         return class_prototypes
 
     def distance(self, a: torch.Tensor, b: torch.Tensor, labels: torch.Tensor = torch.tensor(0)):
