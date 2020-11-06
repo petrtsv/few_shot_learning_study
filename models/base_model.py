@@ -20,7 +20,7 @@ class FSLSolver(nn.Module):
 
         self.is_feat = feat
 
-        assert distance_type in ('cosine_scale', 'euclidean', 'sen')
+        assert distance_type in ('cosine_scale', 'euclidean', 'sen2')
         self.distance_type = distance_type
 
         self.scale_module = ScaleModule(in_features=self.feature_extractor.output_features(),
@@ -121,14 +121,14 @@ class FSLSolver(nn.Module):
             b = torch.div(b, b_scale)
 
             return (a - b).pow(2).sum(dim=1)
-        elif self.distance_type == 'sen':
+        elif self.distance_type == 'sen2':
             euclidean = (a - b).pow(2).sum(dim=1)
             norms = (a.norm(dim=1, p=2) - b.norm(dim=1, p=2)).pow(2)
             if (torch.tensor(0).to(labels)).equal(labels):
-                k = 1.0 * labels + (10 ** -7) * (1 - labels)
+                k = 1.0 * labels - (10 ** -7) * (1 - labels)
             else:
                 k = torch.ones_like(norms)
-            return (euclidean - k * norms).sqrt()
+            return (euclidean + k * norms).sqrt()
         else:
             raise NotImplementedError("Distance is not implemented yet")
 
