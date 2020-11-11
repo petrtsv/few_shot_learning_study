@@ -124,7 +124,7 @@ class FSLSolver(nn.Module):
         elif self.distance_type == 'sen2':
             euclidean = (a - b).pow(2).sum(dim=1)
             norms = (a.norm(dim=1, p=2) - b.norm(dim=1, p=2)).pow(2)
-            if (torch.tensor(0).to(labels)).equal(labels):
+            if not (torch.tensor(0).to(labels)).equal(labels):
                 k = 1.0 * labels - (10 ** -7) * (1 - labels)
             else:
                 k = torch.ones_like(norms)
