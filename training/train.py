@@ -182,7 +182,8 @@ def train_model(options: dict):
         dataset_classes=dataset.CLASSES,
         k=options['k'],
         distance_type=options['distance'],
-        feat=options['is_feat']
+        feat=options['is_feat'],
+        relevance_estimation=options['is_relevance']
     )
 
     trained_model = run_training(model=model, train_subdataset=train_subdataset, val_subdataset=test_subdataset,

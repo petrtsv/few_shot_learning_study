@@ -8,13 +8,15 @@ from evaluation.metrics import accuracy
 from models.auxillary_tasks import RotationTask
 from models.dfmn import DFMNLoss, ScaleModule
 from models.feature_extarctors.base import NoFlatteningBackbone
+from models.relevance_estimation import RelevanceEstimator
 from models.set2set_adaptation import FEATTransformer
 from utils import remove_dim
 
 
 class FSLSolver(nn.Module):
     def __init__(self, backbone: NoFlatteningBackbone, k=1.0, aux_rotation_k=0.0, aux_location_k=0.0, dfmn_k=0.0,
-                 dataset_classes=None, train_n_way=None, distance_type='cosine_scale', feat=False):
+                 dataset_classes=None, train_n_way=None, distance_type='cosine_scale', feat=False,
+                 relevance_estimation=False):
         super(FSLSolver, self).__init__()
         self.feature_extractor = backbone
 
@@ -65,6 +67,10 @@ class FSLSolver(nn.Module):
         self.feat_transformer = FEATTransformer(
             self.feature_extractor.output_features() * (self.feature_extractor.output_featmap_size() ** 2))
 
+        self.relevance_estimation = relevance_estimation
+        self.relevance_estimator = RelevanceEstimator(self.feature_extractor.output_features(),
+                                                      self.feature_extractor.output_featmap_size())
+
     def extract_features(self, batch: torch.Tensor, flatten: bool = True) -> torch.Tensor:
         MAX_BATCH_SIZE: int = 500
         batch_size: int = batch.size(0)
@@ -87,8 +93,34 @@ class FSLSolver(nn.Module):
         else:
             return features
 
-    def compute_prototypes(self, support_set: torch.Tensor):
-        return torch.mean(support_set, dim=1)
+    def extract_relevance_estimation(self, batch: torch.Tensor) -> torch.Tensor:
+        MAX_BATCH_SIZE: int = 500
+        batch_size: int = batch.size(0)
+        sections: List[int] = []
+        while batch_size > MAX_BATCH_SIZE:
+            sections.append(MAX_BATCH_SIZE)
+            batch_size -= MAX_BATCH_SIZE
+        sections.append(batch_size)
+
+        minibatches = batch.split(sections)
+        xs = []
+        for minibatch in minibatches:
+            output = self.relevance_estimator(minibatch)
+            xs.append(output)
+        features = torch.cat(xs)
+        # features = self.feature_extractor(batch)
+
+        return features.view(features.size(0))
+
+    def compute_prototypes(self, support_set: torch.Tensor, relevance: torch.Tensor):
+        relevance_sum = relevance.sum(dim=1)
+        relevance_expanded = relevance.unsqueeze(2).repeat(1, 1, support_set.size(2))
+
+        scaled_support_set = support_set * relevance_expanded
+        prototypes = scaled_support_set.sum(dim=1)
+        prototypes = prototypes / (relevance_sum.unsqueeze(1).repeat(1, prototypes.size(1)))
+
+        return prototypes
 
     @torch.jit.export
     def get_prototypes(self, support_set: torch.Tensor):
@@ -96,7 +128,15 @@ class FSLSolver(nn.Module):
         support_set_size = support_set.size(1)
         support_set_features = self.extract_features(remove_dim(support_set, 1)).view(n_classes,
                                                                                       support_set_size, -1)
-        class_prototypes = self.compute_prototypes(support_set_features)
+        support_set_relevance = torch.ones(size=(n_classes, support_set_size), device=support_set_features.device)
+        if self.relevance_estimation:
+            support_set_relevance = self.extract_relevance_estimation(
+                remove_dim(support_set_features, 1).view(-1, self.feature_extractor.output_features(),
+                                                         self.feature_extractor.output_featmap_size(),
+                                                         self.feature_extractor.output_featmap_size())).view(n_classes,
+                                                                                                             support_set_size)
+
+        class_prototypes = self.compute_prototypes(support_set_features, support_set_relevance)
 
         if self.is_feat:
             class_prototypes = self.feat_transformer(class_prototypes)
