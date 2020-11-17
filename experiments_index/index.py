@@ -29,3 +29,7 @@ def save_record(name, record):
     index_df = index_df.append(record_df, sort=False, ignore_index=True)
 
     save_df()
+
+
+def get_index_df():
+    return index_df
